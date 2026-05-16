@@ -150,7 +150,7 @@ function getOrCreatePlayer(name, avatarUrl) {
   return player;
 }
 
-function addPower(name, type = "like", amount = 1, avatarUrl) {
+function addPower(name, type = "like", amount = 1, avatarUrl, io) {
   const player = getOrCreatePlayer(name, avatarUrl);
 
   const powerGain = type === "gift" ? amount * 120 : amount * 2;
@@ -159,6 +159,16 @@ function addPower(name, type = "like", amount = 1, avatarUrl) {
 
   if (type === "gift") {
     player.giftPoints += powerGain;
+
+    if (io) {
+      io.emit("jarGift", {
+        id: `${Date.now()}-${Math.random()}`,
+        name,
+        avatarUrl,
+        amount,
+        power: powerGain,
+      });
+    }
   }
 
   if (type === "like") {
@@ -272,7 +282,7 @@ async function connectTikTok(username, io) {
       const avatarUrl = getAvatar(data, name);
       const amount = data.likeCount || 1;
 
-      addPower(name, "like", amount, avatarUrl);
+      addPower(name, "like", amount, avatarUrl, io);
     });
 
     tiktokConnection.on("gift", (data) => {
@@ -280,7 +290,7 @@ async function connectTikTok(username, io) {
       const avatarUrl = getAvatar(data, name);
       const amount = data.repeatCount || 1;
 
-      addPower(name, "gift", amount, avatarUrl);
+      addPower(name, "gift", amount, avatarUrl, io);
     });
 
     tiktokConnection.on("disconnected", () => {
@@ -323,15 +333,19 @@ app.prepare().then(() => {
     });
 
     socket.on("like", ({ name, amount, avatarUrl }) => {
-      addPower(name || "Player", "like", amount || 1, avatarUrl);
+      addPower(name || "Player", "like", amount || 1, avatarUrl, io);
     });
 
     socket.on("gift", ({ name, amount, avatarUrl }) => {
-      addPower(name || "Player", "gift", amount || 1, avatarUrl);
+      addPower(name || "Player", "gift", amount || 1, avatarUrl, io);
     });
 
     socket.on("testTap", ({ name, amount, avatarUrl }) => {
-      addPower(name || "TapPlayer", "like", amount || 1, avatarUrl);
+      addPower(name || "TapPlayer", "like", amount || 1, avatarUrl, io);
+    });
+
+    socket.on("resetGiftJar", () => {
+      io.emit("giftJarReset");
     });
   });
 
