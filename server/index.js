@@ -412,7 +412,7 @@ app.prepare().then(() => {
 
   setInterval(gameLoop, 40);
 
-  expressApp.all("*", (req, res) => {
+  expressApp.use((req, res) => {
     return handle(req, res);
   });
 
