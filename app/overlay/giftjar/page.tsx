@@ -11,6 +11,8 @@ type JarGift = {
   avatarUrl?: string;
   amount: number;
   power: number;
+  giftName?: string;
+  giftImageUrl?: string;
 };
 
 type FallingGift = {
@@ -20,12 +22,13 @@ type FallingGift = {
   rotation: number;
   size: number;
   speed: number;
-  emoji: string;
+  imageUrl: string;
+  fallback: string;
   color: string;
   settled: boolean;
 };
 
-const GIFT_EMOJIS = ["🎁", "💎", "💖", "🌹", "⭐", "👑", "🧸"];
+const FALLBACKS = ["🎁", "💎", "💖", "🌹", "⭐", "👑", "🧸"];
 
 export default function GiftJarOverlay() {
   const [gifts, setGifts] = useState<FallingGift[]>([]);
@@ -36,28 +39,29 @@ export default function GiftJarOverlay() {
     const big = power >= 500;
 
     const newGift: FallingGift = {
-      id: data?.id || `${Date.now()}-${Math.random()}`,
+      id: `${data?.id || Date.now()}-${Math.random()}`,
       x: 75 + Math.random() * 165,
       y: -80,
       rotation: Math.random() * 360,
-      size: big ? 38 : 28 + Math.random() * 9,
-      speed: big ? 3.2 : 2 + Math.random() * 1.8,
-      emoji: GIFT_EMOJIS[Math.floor(Math.random() * GIFT_EMOJIS.length)],
+      size: big ? 44 : 30 + Math.random() * 10,
+      speed: big ? 3.4 : 2 + Math.random() * 1.8,
+      imageUrl: data?.giftImageUrl || "",
+      fallback: FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)],
       color: big ? "#ffd700" : "#00eaff",
       settled: false,
     };
 
-    setGifts((prev) => [...prev.slice(-150), newGift]);
+    setGifts((prev) => [...prev.slice(-160), newGift]);
   }
 
   useEffect(() => {
     document.body.style.background = "transparent";
 
     socket.on("jarGift", (data: JarGift) => {
-      const repeat = Math.min(data.amount || 1, 8);
+      const repeat = Math.min(data.amount || 1, 10);
 
       for (let i = 0; i < repeat; i++) {
-        setTimeout(() => spawnGift(data), i * 120);
+        setTimeout(() => spawnGift(data), i * 110);
       }
     });
 
@@ -75,21 +79,20 @@ export default function GiftJarOverlay() {
     function animate() {
       setGifts((prev) => {
         const settledCount = prev.filter((g) => g.settled).length;
-        const fillHeight = Math.min(250, settledCount * 2.7);
+        const fillHeight = Math.min(260, settledCount * 2.8);
 
         return prev.map((gift) => {
           if (gift.settled) return gift;
 
           const jarBottom = 420 - Math.random() * 8;
-          const targetY = jarBottom - fillHeight + Math.random() * 38;
-
+          const targetY = jarBottom - fillHeight + Math.random() * 42;
           const nextY = gift.y + gift.speed;
           const shouldSettle = nextY >= targetY;
 
           return {
             ...gift,
             y: shouldSettle ? targetY : nextY,
-            rotation: gift.rotation + 2.5,
+            rotation: gift.rotation + 2.7,
             settled: shouldSettle,
           };
         });
@@ -125,12 +128,19 @@ export default function GiftJarOverlay() {
                 top: gift.y,
                 width: gift.size,
                 height: gift.size,
-                fontSize: gift.size,
                 transform: `rotate(${gift.rotation}deg)`,
                 filter: `drop-shadow(0 0 8px ${gift.color})`,
               }}
             >
-              {gift.emoji}
+              {gift.imageUrl ? (
+                <img
+                  src={gift.imageUrl}
+                  alt="gift"
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div style={{ fontSize: gift.size }}>{gift.fallback}</div>
+              )}
             </div>
           ))}
 
