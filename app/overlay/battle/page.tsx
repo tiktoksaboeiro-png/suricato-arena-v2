@@ -83,9 +83,9 @@ export default function BattleOverlay() {
         style={{
           width: "calc(100vw - 34px)",
           maxWidth: 520,
-          height: "43vh",
-          maxHeight: 350,
-          minHeight: 280,
+          height: "52vh",
+          maxHeight: 470,
+          minHeight: 390,
           top: "36%",
           transform: "translateX(-50%)",
         }}
@@ -112,7 +112,7 @@ export default function BattleOverlay() {
         </div>
 
         {/* PARTE DE DENTRO COM FUNDO */}
-        <div className="absolute bottom-3 left-3 right-3 h-[72%] overflow-hidden rounded-[22px] border-[3px] border-cyan-300 bg-black shadow-[0_0_24px_#00eaff,0_0_55px_#004dff_inset]">
+        <div className="absolute bottom-3 left-3 right-3 h-[78%] overflow-hidden rounded-[22px] border-[3px] border-cyan-300 bg-black shadow-[0_0_24px_#00eaff,0_0_55px_#004dff_inset]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#102a57_0%,#020817_48%,#000_100%)]" />
 
           {/* ATAQUES */}
