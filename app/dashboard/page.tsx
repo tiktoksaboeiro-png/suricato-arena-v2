@@ -1,11 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { io } from "socket.io-client";
+
+const socket = io();
 
 export default function DashboardPage() {
   function copy(text: string, message: string) {
     navigator.clipboard.writeText(text);
     alert(message);
+  }
+
+  function resetGiftJar() {
+    const confirmReset = confirm("Tem certeza que deseja resetar o pote?");
+    if (!confirmReset) return;
+
+    socket.emit("resetGiftJar");
+    alert("Pote resetado!");
   }
 
   const baseUrl =
@@ -32,7 +43,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-6">
           <Link href="/overlay/battle">
             <div className="group rounded-3xl border border-cyan-400/30 bg-black/60 p-6 transition hover:scale-105 hover:border-cyan-300 hover:shadow-[0_0_30px_#00eaff]">
               <div className="text-5xl">⚔️</div>
@@ -57,37 +68,54 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/overlay/taprank3">
+          <Link href="/overlay/taprank5">
             <div className="group rounded-3xl border border-pink-400/30 bg-black/60 p-6 transition hover:scale-105 hover:border-pink-300 hover:shadow-[0_0_30px_#ff4fd8]">
               <div className="text-5xl">❤️</div>
               <h2 className="mt-4 text-2xl font-black text-white">
                 Rank Taps
               </h2>
               <p className="mt-2 text-sm text-pink-100/70">
-                Top 1, Top 2 e Top 3 dos taps
+                Top 1 até Top 5 dos taps
+              </p>
+            </div>
+          </Link>
+
+          <Link href="/overlay/giftjar">
+            <div className="group rounded-3xl border border-emerald-400/30 bg-black/60 p-6 transition hover:scale-105 hover:border-emerald-300 hover:shadow-[0_0_30px_#00ff99]">
+              <div className="text-5xl">🫙</div>
+              <h2 className="mt-4 text-2xl font-black text-white">
+                Pote
+              </h2>
+              <p className="mt-2 text-sm text-emerald-100/70">
+                Presentes caindo dentro do pote
               </p>
             </div>
           </Link>
 
           <Link href="/tiktok">
-            <div className="group rounded-3xl border border-pink-400/30 bg-black/60 p-6 transition hover:scale-105 hover:border-pink-300 hover:shadow-[0_0_30px_#ff00aa]">
+            <div className="group rounded-3xl border border-purple-400/30 bg-black/60 p-6 transition hover:scale-105 hover:border-purple-300 hover:shadow-[0_0_30px_#b400ff]">
               <div className="text-5xl">📱</div>
               <h2 className="mt-4 text-2xl font-black text-white">
                 TikTok Live
               </h2>
-              <p className="mt-2 text-sm text-pink-100/70">
+              <p className="mt-2 text-sm text-purple-100/70">
                 Conectar live do TikTok
               </p>
             </div>
           </Link>
 
-          <div className="rounded-3xl border border-purple-400/20 bg-black/40 p-6 opacity-70">
-            <div className="text-5xl">🎮</div>
-            <h2 className="mt-4 text-2xl font-black text-white">Em breve</h2>
-            <p className="mt-2 text-sm text-purple-100/60">
-              Boss Raid, corrida e pote de presentes
+          <button
+            onClick={resetGiftJar}
+            className="rounded-3xl border border-red-400/40 bg-black/60 p-6 text-left transition hover:scale-105 hover:border-red-300 hover:shadow-[0_0_30px_#ff003c]"
+          >
+            <div className="text-5xl">🧹</div>
+            <h2 className="mt-4 text-2xl font-black text-white">
+              Resetar Pote
+            </h2>
+            <p className="mt-2 text-sm text-red-100/70">
+              Limpa todos os presentes do pote
             </p>
-          </div>
+          </button>
         </div>
 
         <div className="mt-12 rounded-3xl border border-cyan-400/20 bg-black/50 p-6">
@@ -115,20 +143,32 @@ export default function DashboardPage() {
             />
 
             <OverlayLink
-              title="Rank Taps Top 3"
+              title="Rank Taps Top 5"
               color="pink"
-              url={`${baseUrl}/overlay/taprank3`}
+              url={`${baseUrl}/overlay/taprank5`}
               onCopy={() =>
                 copy(
-                  `${baseUrl}/overlay/taprank3`,
+                  `${baseUrl}/overlay/taprank5`,
                   "Link do Rank de Taps copiado!"
                 )
               }
             />
 
             <OverlayLink
+              title="Pote de Presentes"
+              color="emerald"
+              url={`${baseUrl}/overlay/giftjar`}
+              onCopy={() =>
+                copy(
+                  `${baseUrl}/overlay/giftjar`,
+                  "Link do Pote copiado!"
+                )
+              }
+            />
+
+            <OverlayLink
               title="Conectar TikTok"
-              color="rose"
+              color="purple"
               url={`${baseUrl}/tiktok`}
               onCopy={() =>
                 copy(`${baseUrl}/tiktok`, "Link do TikTok copiado!")
@@ -149,7 +189,7 @@ function OverlayLink({
 }: {
   title: string;
   url: string;
-  color: "cyan" | "yellow" | "pink" | "rose";
+  color: "cyan" | "yellow" | "pink" | "emerald" | "purple";
   onCopy: () => void;
 }) {
   const colors = {
@@ -174,12 +214,19 @@ function OverlayLink({
       button:
         "border-pink-300 bg-pink-500/10 text-pink-200 hover:bg-pink-500/20",
     },
-    rose: {
-      border: "border-rose-400/20",
-      title: "text-rose-100",
-      text: "text-rose-300",
+    emerald: {
+      border: "border-emerald-400/20",
+      title: "text-emerald-100",
+      text: "text-emerald-300",
       button:
-        "border-rose-300 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20",
+        "border-emerald-300 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
+    },
+    purple: {
+      border: "border-purple-400/20",
+      title: "text-purple-100",
+      text: "text-purple-300",
+      button:
+        "border-purple-300 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20",
     },
   };
 
