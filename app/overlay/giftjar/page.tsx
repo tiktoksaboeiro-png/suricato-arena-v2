@@ -7,11 +7,8 @@ const socket = io();
 
 type JarGift = {
   id: string;
-  name: string;
-  avatarUrl?: string;
   amount: number;
   power: number;
-  giftName?: string;
   giftImageUrl?: string;
 };
 
@@ -24,7 +21,6 @@ type FallingGift = {
   speed: number;
   imageUrl: string;
   fallback: string;
-  color: string;
   settled: boolean;
 };
 
@@ -35,23 +31,27 @@ export default function GiftJarOverlay() {
   const animationRef = useRef<number | null>(null);
 
   function spawnGift(data?: JarGift) {
-    const power = data?.power || 120;
-    const big = power >= 500;
+    const big = (data?.power || 120) >= 500;
 
-    const newGift: FallingGift = {
-      id: `${data?.id || Date.now()}-${Math.random()}`,
-      x: 75 + Math.random() * 165,
-      y: -80,
+    const gift: FallingGift = {
+      id: `${Date.now()}-${Math.random()}`,
+      x: 95 + Math.random() * 140,
+      y: -70,
       rotation: Math.random() * 360,
-      size: big ? 44 : 30 + Math.random() * 10,
-      speed: big ? 3.4 : 2 + Math.random() * 1.8,
+      size: big ? 42 : 30 + Math.random() * 8,
+      speed: big ? 3.2 : 2.2 + Math.random() * 1.5,
       imageUrl: data?.giftImageUrl || "",
       fallback: FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)],
-      color: big ? "#ffd700" : "#00eaff",
       settled: false,
     };
 
-    setGifts((prev) => [...prev.slice(-160), newGift]);
+    setGifts((prev) => [...prev.slice(-180), gift]);
+  }
+
+  function simularPresente() {
+    for (let i = 0; i < 8; i++) {
+      setTimeout(() => spawnGift(), i * 140);
+    }
   }
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function GiftJarOverlay() {
       const repeat = Math.min(data.amount || 1, 10);
 
       for (let i = 0; i < repeat; i++) {
-        setTimeout(() => spawnGift(data), i * 110);
+        setTimeout(() => spawnGift(data), i * 120);
       }
     });
 
@@ -78,22 +78,21 @@ export default function GiftJarOverlay() {
   useEffect(() => {
     function animate() {
       setGifts((prev) => {
-        const settledCount = prev.filter((g) => g.settled).length;
-        const fillHeight = Math.min(260, settledCount * 2.8);
+        const settled = prev.filter((g) => g.settled).length;
+        const fillHeight = Math.min(235, settled * 2.8);
 
         return prev.map((gift) => {
           if (gift.settled) return gift;
 
-          const jarBottom = 420 - Math.random() * 8;
-          const targetY = jarBottom - fillHeight + Math.random() * 42;
+          const jarBottom = 388;
+          const targetY = jarBottom - fillHeight + Math.random() * 45;
           const nextY = gift.y + gift.speed;
-          const shouldSettle = nextY >= targetY;
 
           return {
             ...gift,
-            y: shouldSettle ? targetY : nextY,
-            rotation: gift.rotation + 2.7,
-            settled: shouldSettle,
+            y: nextY >= targetY ? targetY : nextY,
+            rotation: gift.rotation + 2.8,
+            settled: nextY >= targetY,
           };
         });
       });
@@ -109,7 +108,7 @@ export default function GiftJarOverlay() {
   }, []);
 
   return (
-    <main className="pointer-events-none relative h-screen w-screen overflow-hidden bg-transparent">
+    <main className="relative h-screen w-screen overflow-hidden bg-transparent">
       <style jsx global>{`
         html,
         body {
@@ -117,19 +116,20 @@ export default function GiftJarOverlay() {
         }
       `}</style>
 
-      <div className="absolute bottom-10 left-1/2 h-[440px] w-[300px] -translate-x-1/2">
-        <div className="absolute left-1/2 top-0 h-[420px] w-[280px] -translate-x-1/2 overflow-visible">
+      <div className="absolute bottom-8 left-1/2 h-[500px] w-[360px] -translate-x-1/2">
+        {/* presentes atrás do vidro */}
+        <div className="absolute left-1/2 top-[70px] z-10 h-[390px] w-[280px] -translate-x-1/2 overflow-visible">
           {gifts.map((gift) => (
             <div
               key={gift.id}
-              className="absolute z-20 flex items-center justify-center"
+              className="absolute flex items-center justify-center"
               style={{
                 left: gift.x,
                 top: gift.y,
                 width: gift.size,
                 height: gift.size,
                 transform: `rotate(${gift.rotation}deg)`,
-                filter: `drop-shadow(0 0 8px ${gift.color})`,
+                filter: "drop-shadow(0 0 8px #ffd700)",
               }}
             >
               {gift.imageUrl ? (
@@ -143,19 +143,22 @@ export default function GiftJarOverlay() {
               )}
             </div>
           ))}
-
-          <div className="absolute bottom-0 left-1/2 z-30 h-[300px] w-[250px] -translate-x-1/2">
-            <div className="absolute left-1/2 top-0 h-10 w-[250px] -translate-x-1/2 rounded-full border-[5px] border-cyan-200 bg-cyan-200/10 shadow-[0_0_22px_#00eaff]" />
-
-            <div className="absolute bottom-0 left-1/2 h-[275px] w-[220px] -translate-x-1/2 rounded-b-[70px] rounded-t-[34px] border-[5px] border-cyan-200 bg-cyan-300/5 shadow-[0_0_25px_#00eaff,0_0_50px_#00eaff_inset] backdrop-blur-[1px]" />
-
-            <div className="absolute left-[55px] top-[55px] h-[180px] w-[20px] rounded-full bg-white/20 blur-sm" />
-
-            <div className="absolute right-[42px] top-[70px] h-[125px] w-[14px] rounded-full bg-cyan-100/20 blur-sm" />
-
-            <div className="absolute bottom-2 left-1/2 h-8 w-[205px] -translate-x-1/2 rounded-full border border-cyan-100/50 bg-cyan-200/10 shadow-[0_0_18px_#00eaff]" />
-          </div>
         </div>
+
+        {/* pote por cima */}
+        <img
+          src="/pote.png"
+          alt="Pote"
+          className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
+        />
+
+        {/* botão só para teste */}
+        <button
+          onClick={simularPresente}
+          className="pointer-events-auto absolute bottom-0 left-1/2 z-40 -translate-x-1/2 rounded-xl border border-yellow-300 bg-black/70 px-4 py-2 text-xs font-black text-yellow-200 shadow-[0_0_14px_#ffd700]"
+        >
+          SIMULAR PRESENTES
+        </button>
       </div>
     </main>
   );
