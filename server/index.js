@@ -1,16 +1,13 @@
 const express = require("express");
 const http = require("http");
-const path = require("path");
 const next = require("next");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const { WebcastPushConnection } = require("tiktok-live-connector");
 
 const dev = process.env.NODE_ENV !== "production";
-
 const app = next({ dev });
 const handle = app.getRequestHandler();
-
 const PORT = process.env.PORT || 3000;
 
 const players = new Map();
@@ -22,10 +19,9 @@ const ARENA = {
 };
 
 let tiktokConnection = null;
-let currentTikTokUser = null;
 
 function makeAvatar(name) {
-  return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
+  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
     name
   )}`;
 }
@@ -125,6 +121,7 @@ function createPlayer(name, avatarUrl) {
 
     points: 0,
     giftPoints: 0,
+    tapPoints: 0,
 
     alive: true,
 
@@ -136,7 +133,7 @@ function createPlayer(name, avatarUrl) {
   };
 }
 
-function addPower(name, type = "like", amount = 1, avatarUrl) {
+function getOrCreatePlayer(name, avatarUrl) {
   const id = name.toLowerCase();
 
   let player = players.get(id);
@@ -150,10 +147,13 @@ function addPower(name, type = "like", amount = 1, avatarUrl) {
     player.avatarUrl = avatarUrl;
   }
 
-  const powerGain =
-    type === "gift"
-      ? amount * 120
-      : amount * 2;
+  return player;
+}
+
+function addPower(name, type = "like", amount = 1, avatarUrl) {
+  const player = getOrCreatePlayer(name, avatarUrl);
+
+  const powerGain = type === "gift" ? amount * 120 : amount * 2;
 
   player.points += powerGain;
 
@@ -161,17 +161,15 @@ function addPower(name, type = "like", amount = 1, avatarUrl) {
     player.giftPoints += powerGain;
   }
 
-  player.hp = Math.min(
-    100,
-    player.hp + (type === "gift" ? 40 : 5)
-  );
+  if (type === "like") {
+    player.tapPoints += amount;
+  }
 
+  player.hp = Math.min(100, player.hp + (type === "gift" ? 40 : 5));
   player.alive = true;
 
   player.eventText =
-    type === "gift"
-      ? `🎁 +${powerGain} PODER`
-      : `❤️ +${powerGain} PODER`;
+    type === "gift" ? `🎁 +${powerGain} PODER` : `❤️ +${amount} TAP`;
 
   player.eventExpire = Date.now() + 1400;
 }
@@ -181,8 +179,7 @@ function updateRanks() {
     (a, b) => b.giftPoints - a.giftPoints
   );
 
-  const topGiftId =
-    list.find((p) => p.giftPoints > 0)?.id;
+  const topGiftId = list.find((p) => p.giftPoints > 0)?.id;
 
   for (const player of players.values()) {
     const evo = getRank(
@@ -196,10 +193,7 @@ function updateRanks() {
 }
 
 function distance(a, b) {
-  return Math.hypot(
-    a.x - b.x,
-    a.y - b.y
-  );
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function separatePlayers(list) {
@@ -208,25 +202,18 @@ function separatePlayers(list) {
       const a = list[i];
       const b = list[j];
 
-      const minDist =
-        (a.size + b.size) / 2 + 18;
-
+      const minDist = (a.size + b.size) / 2 + 18;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-
-      const dist =
-        Math.sqrt(dx * dx + dy * dy) || 1;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
       if (dist < minDist) {
-        const overlap =
-          (minDist - dist) / 2;
-
+        const overlap = (minDist - dist) / 2;
         const nx = dx / dist;
         const ny = dy / dist;
 
         a.x -= nx * overlap;
         a.y -= ny * overlap;
-
         b.x += nx * overlap;
         b.y += ny * overlap;
       }
@@ -235,29 +222,26 @@ function separatePlayers(list) {
 }
 
 function findTarget(attacker, list) {
-  const enemies = list.filter(
-    (p) =>
-      p.id !== attacker.id &&
-      p.alive
-  );
+  const enemies = list.filter((p) => p.id !== attacker.id && p.alive);
 
   if (!enemies.length) return null;
 
-  enemies.sort(
-    (a, b) =>
-      distance(attacker, a) -
-      distance(attacker, b)
-  );
+  enemies.sort((a, b) => distance(attacker, a) - distance(attacker, b));
 
   return enemies[0];
 }
 
 async function connectTikTok(username, io) {
-  const cleanUser = username
-    .replace("@", "")
-    .trim();
+  const cleanUser = username.replace("@", "").trim();
 
-  if (!cleanUser) return;
+  if (!cleanUser) {
+    io.emit("tiktokStatus", {
+      connected: false,
+      message: "Digite um @ válido",
+    });
+
+    return;
+  }
 
   if (tiktokConnection) {
     try {
@@ -265,52 +249,54 @@ async function connectTikTok(username, io) {
     } catch {}
   }
 
-  currentTikTokUser = cleanUser;
+  io.emit("tiktokStatus", {
+    connected: false,
+    message: `Conectando em @${cleanUser}...`,
+  });
 
-  tiktokConnection =
-    new WebcastPushConnection(cleanUser);
+  tiktokConnection = new WebcastPushConnection(cleanUser);
 
   try {
     await tiktokConnection.connect();
 
-    console.log(
-      `✅ TikTok conectado: @${cleanUser}`
-    );
+    console.log(`✅ TikTok conectado: @${cleanUser}`);
 
     io.emit("tiktokStatus", {
       connected: true,
       username: cleanUser,
+      message: `Conectado em @${cleanUser}`,
     });
 
     tiktokConnection.on("like", (data) => {
       const name = getName(data);
+      const avatarUrl = getAvatar(data, name);
+      const amount = data.likeCount || 1;
 
-      addPower(
-        name,
-        "like",
-        data.likeCount || 1,
-        getAvatar(data, name)
-      );
+      addPower(name, "like", amount, avatarUrl);
     });
 
     tiktokConnection.on("gift", (data) => {
       const name = getName(data);
+      const avatarUrl = getAvatar(data, name);
+      const amount = data.repeatCount || 1;
 
-      addPower(
-        name,
-        "gift",
-        data.repeatCount || 1,
-        getAvatar(data, name)
-      );
+      addPower(name, "gift", amount, avatarUrl);
+    });
+
+    tiktokConnection.on("disconnected", () => {
+      io.emit("tiktokStatus", {
+        connected: false,
+        username: cleanUser,
+        message: "TikTok desconectado",
+      });
     });
   } catch (err) {
-    console.log(
-      "❌ ERRO TIKTOK:",
-      err.message
-    );
+    console.log("❌ ERRO TIKTOK:", err.message);
 
     io.emit("tiktokStatus", {
       connected: false,
+      username: cleanUser,
+      message: "Erro ao conectar. Verifique se a live está online.",
     });
   }
 }
@@ -321,8 +307,7 @@ app.prepare().then(() => {
   expressApp.use(cors());
   expressApp.use(express.json());
 
-  const httpServer =
-    http.createServer(expressApp);
+  const httpServer = http.createServer(expressApp);
 
   const io = new Server(httpServer, {
     cors: {
@@ -331,26 +316,29 @@ app.prepare().then(() => {
   });
 
   io.on("connection", (socket) => {
-    console.log(
-      "🔥 SOCKET:",
-      socket.id
-    );
+    console.log("🔥 SOCKET:", socket.id);
 
-    socket.on(
-      "connectTikTok",
-      ({ username }) => {
-        connectTikTok(username, io);
-      }
-    );
+    socket.on("connectTikTok", ({ username }) => {
+      connectTikTok(username, io);
+    });
+
+    socket.on("like", ({ name, amount, avatarUrl }) => {
+      addPower(name || "Player", "like", amount || 1, avatarUrl);
+    });
+
+    socket.on("gift", ({ name, amount, avatarUrl }) => {
+      addPower(name || "Player", "gift", amount || 1, avatarUrl);
+    });
+
+    socket.on("testTap", ({ name, amount, avatarUrl }) => {
+      addPower(name || "TapPlayer", "like", amount || 1, avatarUrl);
+    });
   });
 
   function gameLoop() {
     updateRanks();
 
-    const list = [...players.values()].filter(
-      (p) => p.alive
-    );
-
+    const list = [...players.values()].filter((p) => p.alive);
     const now = Date.now();
 
     for (const p of list) {
@@ -359,122 +347,67 @@ app.prepare().then(() => {
 
       const radius = p.size / 2;
 
-      if (
-        p.x <
-        ARENA.padding + radius
-      ) {
-        p.x =
-          ARENA.padding + radius;
+      if (p.x < ARENA.padding + radius) {
+        p.x = ARENA.padding + radius;
         p.vx *= -1;
       }
 
-      if (
-        p.x >
-        ARENA.width -
-          ARENA.padding -
-          radius
-      ) {
-        p.x =
-          ARENA.width -
-          ARENA.padding -
-          radius;
-
+      if (p.x > ARENA.width - ARENA.padding - radius) {
+        p.x = ARENA.width - ARENA.padding - radius;
         p.vx *= -1;
       }
 
-      if (
-        p.y <
-        ARENA.padding + radius
-      ) {
-        p.y =
-          ARENA.padding + radius;
+      if (p.y < ARENA.padding + radius) {
+        p.y = ARENA.padding + radius;
         p.vy *= -1;
       }
 
-      if (
-        p.y >
-        ARENA.height -
-          ARENA.padding -
-          radius
-      ) {
-        p.y =
-          ARENA.height -
-          ARENA.padding -
-          radius;
-
+      if (p.y > ARENA.height - ARENA.padding - radius) {
+        p.y = ARENA.height - ARENA.padding - radius;
         p.vy *= -1;
       }
 
-      if (Math.random() < 0.015)
-        p.vx *= -1;
+      if (Math.random() < 0.015) p.vx *= -1;
+      if (Math.random() < 0.015) p.vy *= -1;
 
-      if (Math.random() < 0.015)
-        p.vy *= -1;
+      const target = findTarget(p, list);
 
-      const target = findTarget(
-        p,
-        list
-      );
-
-      if (
-        target &&
-        distance(p, target) < 420 &&
-        now - p.lastAttack > 900
-      ) {
+      if (target && distance(p, target) < 420 && now - p.lastAttack > 900) {
         target.hp -= p.damage;
-
         p.lastAttack = now;
 
         p.lastHitEffect = {
           fromX: p.x,
           fromY: p.y,
-
           toX: target.x,
           toY: target.y,
-
           color: p.aura,
           rank: p.rank,
           power: p.power,
-
           expire: now + 260,
         };
 
         if (target.hp <= 0) {
           target.hp = 0;
-
           target.alive = false;
-
-          target.eventText =
-            "💀 ELIMINADO";
-
-          target.eventExpire =
-            now + 1800;
+          target.eventText = "💀 ELIMINADO";
+          target.eventExpire = now + 1800;
         }
       }
     }
 
     separatePlayers(list);
 
-    const payload = [...players.values()].map(
-      (p) => ({
-        ...p,
+    const payload = [...players.values()].map((p) => ({
+      ...p,
+      showEvent: p.eventExpire > now,
+      lastHitEffect:
+        p.lastHitEffect && p.lastHitEffect.expire > now
+          ? p.lastHitEffect
+          : null,
+    }));
 
-        showEvent:
-          p.eventExpire > now,
-
-        lastHitEffect:
-          p.lastHitEffect &&
-          p.lastHitEffect.expire >
-            now
-            ? p.lastHitEffect
-            : null,
-      })
-    );
-
-    io.emit(
-      "playersUpdate",
-      payload
-    );
+    io.emit("playersUpdate", payload);
   }
 
   setInterval(gameLoop, 40);
@@ -484,8 +417,6 @@ app.prepare().then(() => {
   });
 
   httpServer.listen(PORT, () => {
-    console.log(
-      `🚀 SURICATO ONLINE NA PORTA ${PORT}`
-    );
+    console.log(`🚀 SURICATO ONLINE NA PORTA ${PORT}`);
   });
 });
