@@ -10,30 +10,38 @@ type Player = {
   name: string;
   avatarUrl: string;
   tapPoints?: number;
-  points: number;
 };
 
-const rankStyle = [
+const rankStyles = [
   {
+    medal: "1",
+    crown: "👑",
     color: "#ffd700",
     glow: "#ffd700",
-    bg: "linear-gradient(180deg,#ffd700,#9b6b00)",
-    label: "1",
-    crown: "👑",
   },
   {
-    color: "#d7e8ff",
-    glow: "#7db7ff",
-    bg: "linear-gradient(180deg,#d7e8ff,#557da8)",
-    label: "2",
+    medal: "2",
     crown: "🥈",
+    color: "#d7e8ff",
+    glow: "#8fb6ff",
   },
   {
+    medal: "3",
+    crown: "🥉",
     color: "#ff9b57",
     glow: "#ff7b22",
-    bg: "linear-gradient(180deg,#ffb06b,#9b4c14)",
-    label: "3",
-    crown: "🥉",
+  },
+  {
+    medal: "4",
+    crown: "",
+    color: "#00eaff",
+    glow: "#00eaff",
+  },
+  {
+    medal: "5",
+    crown: "",
+    color: "#00eaff",
+    glow: "#00eaff",
   },
 ];
 
@@ -41,6 +49,8 @@ export default function TapRank5Overlay() {
   const [players, setPlayers] = useState<Player[]>([]);
 
   useEffect(() => {
+    document.body.style.background = "transparent";
+
     socket.on("playersUpdate", (data: Player[]) => {
       const ranked = [...data]
         .filter((p) => (p.tapPoints || 0) > 0)
@@ -57,53 +67,27 @@ export default function TapRank5Overlay() {
 
   return (
     <main className="pointer-events-none h-screen w-screen overflow-hidden bg-transparent text-white">
-      <div className="absolute left-3 top-[18%] flex w-[135px] flex-col items-center gap-3">
+      <style jsx global>{`
+        html,
+        body {
+          background: transparent !important;
+        }
+      `}</style>
+
+      <div className="absolute left-3 top-[14%] flex w-[135px] flex-col items-center gap-3">
         {players.map((player, index) => {
+          const s = rankStyles[index];
           const taps = player.tapPoints || 0;
           const isTop3 = index < 3;
-          const s = rankStyle[index];
 
-          if (isTop3) {
-            return (
-              <div
-                key={player.id}
-                className="relative flex w-full flex-col items-center"
-              >
-                {/* ASAS ESQUERDA */}
-                <div className="absolute left-[-30px] top-[18px] z-0">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="absolute h-[12px] w-[44px] rounded-l-full"
-                      style={{
-                        top: i * 12,
-                        transform: `rotate(${-26 + i * 12}deg)`,
-                        background: `linear-gradient(90deg, transparent, ${s.color})`,
-                        boxShadow: `0 0 9px ${s.glow}`,
-                        opacity: 0.9,
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* ASAS DIREITA */}
-                <div className="absolute right-[-30px] top-[18px] z-0">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="absolute h-[12px] w-[44px] rounded-r-full"
-                      style={{
-                        top: i * 12,
-                        transform: `rotate(${26 - i * 12}deg)`,
-                        background: `linear-gradient(270deg, transparent, ${s.color})`,
-                        boxShadow: `0 0 9px ${s.glow}`,
-                        opacity: 0.9,
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* COROA */}
+          return (
+            <div
+              key={player.id}
+              className={`relative flex w-full flex-col items-center ${
+                isTop3 ? "mb-1" : ""
+              }`}
+            >
+              {isTop3 && (
                 <div
                   className="absolute -top-4 z-30 text-[22px]"
                   style={{
@@ -112,91 +96,64 @@ export default function TapRank5Overlay() {
                 >
                   {s.crown}
                 </div>
+              )}
 
-                {/* MOLDURA */}
-                <div
-                  className="relative z-20 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[4px]"
-                  style={{
-                    borderColor: s.color,
-                    background: s.bg,
-                    boxShadow: `0 0 14px ${s.glow}, inset 0 0 12px #000`,
-                  }}
-                >
-                  <div className="h-[58px] w-[58px] overflow-hidden rounded-full border-2 border-black bg-black">
-                    <img
-                      src={player.avatarUrl}
-                      alt={player.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-
-                  {/* NÚMERO */}
-                  <div
-                    className="absolute -bottom-3 flex h-7 w-7 items-center justify-center rounded-full border-2 text-sm font-black text-white"
-                    style={{
-                      borderColor: s.color,
-                      background: "#050505",
-                      boxShadow: `0 0 10px ${s.glow}`,
-                    }}
-                  >
-                    {s.label}
-                  </div>
-                </div>
-
-                {/* NOME + TAPS */}
-                <div
-                  className="mt-3 w-[118px] rounded-xl border bg-black/55 px-2 py-1 text-center backdrop-blur-sm"
-                  style={{
-                    borderColor: s.color,
-                    boxShadow: `0 0 10px ${s.glow}`,
-                  }}
-                >
-                  <div className="truncate text-[10px] font-black leading-none text-white">
-                    {player.name}
-                  </div>
-
-                  <div
-                    className="mt-1 text-[13px] font-black leading-none"
-                    style={{
-                      color: s.color,
-                      textShadow: `0 0 8px ${s.glow}`,
-                    }}
-                  >
-                    {taps.toLocaleString("pt-BR")}
-                  </div>
-
-                  <div className="text-[7px] font-bold text-white/70">
-                    TAPS
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              key={player.id}
-              className="flex w-[118px] items-center gap-2 rounded-2xl border border-white/20 bg-black/45 px-2 py-2 backdrop-blur-sm"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[11px] font-black">
-                {index + 1}
-              </div>
-
-              <div className="h-8 w-8 overflow-hidden rounded-full border border-white/40 bg-black">
+              <div
+                className={`relative flex items-center justify-center rounded-full border-[3px] bg-black/20 ${
+                  isTop3 ? "h-[66px] w-[66px]" : "h-[48px] w-[48px]"
+                }`}
+                style={{
+                  borderColor: s.color,
+                  boxShadow: isTop3
+                    ? `0 0 13px ${s.glow}`
+                    : `0 0 7px ${s.glow}`,
+                }}
+              >
                 <img
                   src={player.avatarUrl}
                   alt={player.name}
-                  className="h-full w-full object-cover"
+                  className={`rounded-full object-cover ${
+                    isTop3 ? "h-[55px] w-[55px]" : "h-[40px] w-[40px]"
+                  }`}
                 />
+
+                <div
+                  className={`absolute flex items-center justify-center rounded-full border-2 bg-black/80 font-black text-white ${
+                    isTop3
+                      ? "-bottom-3 h-7 w-7 text-sm"
+                      : "-bottom-2 h-5 w-5 text-[10px]"
+                  }`}
+                  style={{
+                    borderColor: s.color,
+                    boxShadow: `0 0 8px ${s.glow}`,
+                  }}
+                >
+                  {s.medal}
+                </div>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[8px] font-black text-white">
+              <div className="mt-4 w-[120px] text-center">
+                <div
+                  className="truncate text-[11px] font-black text-white"
+                  style={{
+                    textShadow: "0 0 5px #000",
+                  }}
+                >
                   {player.name}
                 </div>
 
-                <div className="text-[9px] font-black text-cyan-300">
-                  {taps.toLocaleString("pt-BR")} taps
+                <div
+                  className="mt-0.5 text-[15px] font-black leading-none"
+                  style={{
+                    color: s.color,
+                    textShadow: `0 0 8px ${s.glow}`,
+                  }}
+                >
+                  {taps.toLocaleString("pt-BR")}
+                </div>
+
+                <div className="text-[7px] font-black text-white/70">
+                  TAPS
                 </div>
               </div>
             </div>
@@ -204,7 +161,7 @@ export default function TapRank5Overlay() {
         })}
 
         {players.length === 0 && (
-          <div className="rounded-2xl border border-cyan-400/40 bg-black/45 px-4 py-3 text-center text-xs font-black text-cyan-200 backdrop-blur-sm">
+          <div className="rounded-xl border border-cyan-400/40 bg-black/20 px-3 py-2 text-center text-[10px] font-black text-cyan-200">
             Aguardando taps...
           </div>
         )}
