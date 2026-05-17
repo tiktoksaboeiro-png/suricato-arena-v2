@@ -39,6 +39,27 @@ function getName(data) {
   return data?.uniqueId || data?.nickname || data?.userId || "Player";
 }
 
+function getGiftImage(data) {
+  return (
+    data?.giftPictureUrl ||
+    data?.giftDetails?.giftPictureUrl ||
+    data?.giftDetails?.image?.url_list?.[0] ||
+    data?.giftDetails?.giftImage?.url?.[0] ||
+    data?.gift?.image?.url_list?.[0] ||
+    data?.extendedGiftInfo?.image?.url_list?.[0] ||
+    ""
+  );
+}
+
+function getGiftName(data) {
+  return (
+    data?.giftName ||
+    data?.giftDetails?.giftName ||
+    data?.extendedGiftInfo?.name ||
+    "Presente"
+  );
+}
+
 function getRank(points, isTop, giftPoints) {
   if (isTop && giftPoints >= 1000) {
     return {
@@ -135,7 +156,6 @@ function createPlayer(name, avatarUrl) {
 
 function getOrCreatePlayer(name, avatarUrl) {
   const id = name.toLowerCase();
-
   let player = players.get(id);
 
   if (!player) {
@@ -150,7 +170,7 @@ function getOrCreatePlayer(name, avatarUrl) {
   return player;
 }
 
-function addPower(name, type = "like", amount = 1, avatarUrl, io) {
+function addPower(name, type = "like", amount = 1, avatarUrl, io, giftInfo = {}) {
   const player = getOrCreatePlayer(name, avatarUrl);
 
   const powerGain = type === "gift" ? amount * 120 : amount * 2;
@@ -167,6 +187,8 @@ function addPower(name, type = "like", amount = 1, avatarUrl, io) {
         avatarUrl,
         amount,
         power: powerGain,
+        giftName: giftInfo.giftName || "Presente",
+        giftImageUrl: giftInfo.giftImageUrl || "",
       });
     }
   }
@@ -188,6 +210,18 @@ function updateRanks() {
   const list = [...players.values()].sort(
     (a, b) => b.giftPoints - a.giftPoints
   );
+
+  // NÃO DEIXA HP DESCER SEM ATAQUE
+if (list.length < 2) {
+  const payload = [...players.values()].map((p) => ({
+    ...p,
+    showEvent: p.eventExpire > now,
+    lastHitEffect: null,
+  }));
+
+  io.emit("playersUpdate", payload);
+  return;
+}
 
   const topGiftId = list.find((p) => p.giftPoints > 0)?.id;
 
@@ -290,7 +324,10 @@ async function connectTikTok(username, io) {
       const avatarUrl = getAvatar(data, name);
       const amount = data.repeatCount || 1;
 
-      addPower(name, "gift", amount, avatarUrl, io);
+      addPower(name, "gift", amount, avatarUrl, io, {
+        giftName: getGiftName(data),
+        giftImageUrl: getGiftImage(data),
+      });
     });
 
     tiktokConnection.on("disconnected", () => {
@@ -336,8 +373,11 @@ app.prepare().then(() => {
       addPower(name || "Player", "like", amount || 1, avatarUrl, io);
     });
 
-    socket.on("gift", ({ name, amount, avatarUrl }) => {
-      addPower(name || "Player", "gift", amount || 1, avatarUrl, io);
+    socket.on("gift", ({ name, amount, avatarUrl, giftName, giftImageUrl }) => {
+      addPower(name || "Player", "gift", amount || 1, avatarUrl, io, {
+        giftName,
+        giftImageUrl,
+      });
     });
 
     socket.on("testTap", ({ name, amount, avatarUrl }) => {
@@ -386,7 +426,14 @@ app.prepare().then(() => {
 
       const target = findTarget(p, list);
 
-      if (target && distance(p, target) < 420 && now - p.lastAttack > 900) {
+      if (
+        target &&
+        target.id !== p.id &&
+        target.alive &&
+        p.alive &&
+        distance(p, target) < 420 &&
+        now - p.lastAttack > 900
+    ) {
         target.hp -= p.damage;
         p.lastAttack = now;
 
